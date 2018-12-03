@@ -61,19 +61,10 @@ func main() {
 			bk.Cmd("./dev/check/all.sh"))
 	}
 
-	pipeline.AddStep(":lipstick:",
-		bk.Cmd("dev/ci/yarn-run.sh prettier"))
+	pipeline.AddStep(":lipstick: :lint-roller: :stylelint: :typescript: :graphql:",
+		bk.Cmd("dev/ci/yarn-run.sh prettier all:tslint all:stylelint all:typecheck graphql-lint"))
 
-	pipeline.AddStep(":typescript:",
-		bk.Cmd("dev/ci/yarn-run.sh all:tslint"))
-
-	pipeline.AddStep(":stylelint:",
-		bk.Cmd("dev/ci/yarn-run.sh all:stylelint all:typecheck"))
-
-	pipeline.AddStep(":graphql:",
-		bk.Cmd("dev/ci/yarn-run.sh graphql-lint"))
-
-	pipeline.AddStep(":typescript:",
+	pipeline.AddStep(":ie:",
 		bk.Cmd("dev/ci/yarn-build.sh client/browser"))
 
 	if !isBextReleaseBranch {
@@ -92,7 +83,7 @@ func main() {
 			bk.ArtifactPaths("web/coverage/coverage-final.json"))
 	}
 
-	pipeline.AddStep(":typescript:",
+	pipeline.AddStep(":typescript: :cake:",
 		bk.Cmd("dev/ci/yarn-test.sh shared"),
 		bk.ArtifactPaths("shared/coverage/coverage-final.json"))
 
@@ -102,12 +93,12 @@ func main() {
 		// pipeline.AddStep(":postgres:",
 		// 	bk.Cmd("./dev/ci/ci-db-backcompat.sh"))
 
-		pipeline.AddStep(":go:",
+		pipeline.AddStep(":go: :shrug:",
 			bk.Cmd("go generate ./..."),
 			bk.Cmd("go test -coverprofile=coverage.txt -covermode=atomic -race ./..."),
 			bk.ArtifactPaths("coverage.txt"))
 
-		pipeline.AddStep(":go:",
+		pipeline.AddStep(":go: :building_construction:",
 			bk.Cmd("go generate ./..."),
 			bk.Cmd("go install -tags dist ./cmd/... ./enterprise/cmd/..."),
 		)
