@@ -2,6 +2,10 @@
 
 set -e
 
+export npm_config_proxy=http://npm-proxy:8080
+export npm_config_https_proxy=http://npm-proxy:8080
+export npm_config_strict_ssl=false
+
 echo 'ENTERPRISE='$ENTERPRISE
 echo 'NODE_ENV='$NODE_ENV
 echo "# Note: NODE_ENV only used for build command"
