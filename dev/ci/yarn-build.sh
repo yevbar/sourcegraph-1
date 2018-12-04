@@ -8,6 +8,8 @@ export npm_config_strict_ssl=false
 export yarn_httpproxy=http://npm-proxy:8080
 export yarn_httpsproxy=http://npm-proxy:8080
 export yarn_strictssl=false
+export HTTP_PROXY=http://npm-proxy:8080
+export HTTPS_PROXY=http://npm-proxy:8080
 
 yarn config list
 
