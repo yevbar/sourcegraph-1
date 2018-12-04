@@ -5,9 +5,9 @@ set -e
 export npm_config_proxy=http://npm-proxy:8080
 export npm_config_https_proxy=http://npm-proxy:8080
 export npm_config_strict_ssl=false
-export yarn_http_proxy=http://npm-proxy:8080
-export yarn_https_proxy=http://npm-proxy:8080
-export yarn_strict_ssl=false
+export yarn_httpproxy=http://npm-proxy:8080
+export yarn_httpsproxy=http://npm-proxy:8080
+export yarn_strictssl=false
 
 yarn config list
 
