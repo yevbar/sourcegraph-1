@@ -1,8 +1,21 @@
 import { HoveredToken, LOADER_DELAY } from '@sourcegraph/codeintellify'
 import * as H from 'history'
+import { isEqual } from 'lodash'
 import { combineLatest, merge, Observable, of, Subscription, Unsubscribable } from 'rxjs'
-import { catchError, delay, filter, first, map, share, startWith, switchMap, takeUntil } from 'rxjs/operators'
+import {
+    catchError,
+    delay,
+    distinctUntilChanged,
+    filter,
+    first,
+    map,
+    share,
+    startWith,
+    switchMap,
+    takeUntil,
+} from 'rxjs/operators'
 import { ActionItemProps } from '../actions/ActionItem'
+import { Context } from '../api/client/context/context'
 import { Services } from '../api/client/services'
 import { ContributableMenu, TextDocumentPositionParams } from '../api/protocol'
 import { getContributedActionItems } from '../contributions/contributions'
@@ -16,16 +29,59 @@ const LOADING: 'loading' = 'loading'
 /**
  * This function is passed to {@link module:@sourcegraph/codeintellify.createHoverifier}, which uses it to fetch
  * the list of buttons to display on the hover tooltip. This function in turn determines that by looking at all
- * action contributions for "hover". It also defines two builtin hover actions, for "Go to definition" and "Find
- * references".
+ * action contributions for the "hover" menu. It also defines two builtin hover actions: "Go to definition" and
+ * "Find references".
  */
 export function getHoverActions(
     { extensionsController }: ExtensionsControllerProps,
-    context: HoveredToken & HoverContext
+    hoverContext: HoveredToken & HoverContext
 ): Observable<ActionItemProps[]> {
+    return getHoverActionsContext({ extensionsController }, hoverContext).pipe(
+        switchMap(context =>
+            extensionsController.services.contribution
+                .getContributions(undefined, context)
+                .pipe(map(contributions => getContributedActionItems(contributions, ContributableMenu.Hover)))
+        )
+    )
+}
+
+/**
+ * The scoped context properties for the hover.
+ *
+ * @internal Exported for testing only.
+ */
+export interface HoverActionsContext extends Context {
+    ['goToDefinition.showLoading']: boolean
+    ['goToDefinition.url']: string | null
+    ['goToDefinition.notFound']: boolean
+    ['goToDefinition.error']: boolean
+    ['findReferences.url']: string | null
+    hoverPosition: TextDocumentPositionParams
+}
+
+/**
+ * Returns an observable that emits the scoped context for the hover upon subscription and whenever it changes.
+ *
+ * @internal Exported for testing only.
+ */
+export function getHoverActionsContext(
+    {
+        extensionsController,
+    }:
+        | ExtensionsControllerProps
+        | {
+              extensionsController: {
+                  services: {
+                      textDocumentDefinition: Pick<Services['textDocumentDefinition'], 'getLocations'>
+                      textDocumentReferences: Pick<Services['textDocumentReferences'], 'providersForDocument'>
+                  }
+              }
+          },
+    hoverContext: HoveredToken & HoverContext
+): Observable<Context> {
     const params: TextDocumentPositionParams = {
-        textDocument: { uri: makeRepoURI(context) },
-        position: { line: context.line - 1, character: context.character - 1 },
+        textDocument: { uri: makeRepoURI(hoverContext) },
+        position: { line: hoverContext.line - 1, character: hoverContext.character - 1 },
     }
     const definitionURLOrError = getDefinitionURL(extensionsController.services.textDocumentDefinition, params).pipe(
         map(result => (result ? result.url : result)), // we only care about the URL or null, not whether there are multiple
@@ -66,31 +122,29 @@ export function getHoverActions(
             )
         ).pipe(startWith(false))
     ).pipe(
-        switchMap(([definitionURLOrError, hasReferenceProvider, showFindReferences]) =>
-            extensionsController.services.contribution
-                .getContributions(undefined, {
-                    'goToDefinition.loading': definitionURLOrError === LOADING,
-                    'goToDefinition.url':
-                        (definitionURLOrError !== LOADING &&
-                            !isErrorLike(definitionURLOrError) &&
-                            definitionURLOrError) ||
-                        null,
-                    'goToDefinition.notFound':
-                        definitionURLOrError !== LOADING &&
-                        !isErrorLike(definitionURLOrError) &&
-                        definitionURLOrError === null,
-                    'goToDefinition.error': isErrorLike(definitionURLOrError),
+        map(
+            ([definitionURLOrError, hasReferenceProvider, showFindReferences]): HoverActionsContext => ({
+                'goToDefinition.showLoading': definitionURLOrError === LOADING,
+                'goToDefinition.url':
+                    (definitionURLOrError !== LOADING && !isErrorLike(definitionURLOrError) && definitionURLOrError) ||
+                    null,
+                'goToDefinition.notFound':
+                    definitionURLOrError !== LOADING &&
+                    !isErrorLike(definitionURLOrError) &&
+                    definitionURLOrError === null,
+                'goToDefinition.error':
+                    isErrorLike(definitionURLOrError) && ((definitionURLOrError as any).stack as any),
 
-                    'findReferences.url':
-                        hasReferenceProvider && showFindReferences
-                            ? toPrettyBlobURL({ ...context, position: context, viewState: 'references' })
-                            : null,
+                'findReferences.url':
+                    hasReferenceProvider && showFindReferences
+                        ? toPrettyBlobURL({ ...hoverContext, position: hoverContext, viewState: 'references' })
+                        : null,
 
-                    // Store hoverPosition for the goToDefinition action's commandArguments to refer to.
-                    hoverPosition: params as any,
-                })
-                .pipe(map(contributions => getContributedActionItems(contributions, ContributableMenu.Hover)))
-        )
+                // Store hoverPosition for the goToDefinition action's commandArguments to refer to.
+                hoverPosition: params,
+            })
+        ),
+        distinctUntilChanged((a, b) => isEqual(a, b))
     )
 }
 
@@ -104,11 +158,11 @@ export function getDefinitionURL(
 ): Observable<{ url: string; multiple: boolean } | null> {
     return textDocumentDefinition.getLocations(params).pipe(
         map(definitions => {
-            if (definitions === null || (Array.isArray(definitions) && definitions.length === 0)) {
+            if (definitions === null || definitions.length === 0) {
                 return null
             }
 
-            if (Array.isArray(definitions) && definitions.length > 1) {
+            if (definitions.length > 1) {
                 // Open the panel to show all definitions.
                 const ctx = parseRepoURI(params.textDocument.uri) as AbsoluteRepoFilePosition
                 return {
@@ -120,8 +174,7 @@ export function getDefinitionURL(
                     multiple: true,
                 }
             }
-
-            const def = Array.isArray(definitions) ? definitions[0] : definitions
+            const def = definitions[0]
 
             // TODO!(sqs): this only works for web, not for client/browser -- the final URL for defs is different
             // because client/browser tries to keep you on the site (eg stay on GitHub after go-to-def). Need to
@@ -152,7 +205,17 @@ export function getDefinitionURL(
 export function registerHoverContributions({
     extensionsController,
     history,
-}: ExtensionsControllerProps & { history: H.History }): Unsubscribable {
+}: (
+    | ExtensionsControllerProps
+    | {
+          extensionsController: {
+              services: Pick<Services, 'commands' | 'contribution'> & {
+                  textDocumentDefinition: Pick<Services['textDocumentDefinition'], 'getLocations'>
+              }
+          }
+      }) & {
+    history: H.History
+}): Unsubscribable {
     const subscriptions = new Subscription()
 
     // Registers the "Go to definition" action shown in the hover tooltip. When clicked, the action finds the
@@ -204,7 +267,7 @@ export function registerHoverContributions({
                         // goToDefinition.{error, loading, url} will all be falsey.)
                         {
                             action: 'goToDefinition',
-                            when: 'goToDefinition.error || goToDefinition.loading',
+                            when: 'goToDefinition.error || goToDefinition.showLoading',
                         },
                         {
                             action: 'goToDefinition.preloaded',
@@ -269,7 +332,7 @@ export function registerHoverContributions({
                         {
                             action: 'findReferences',
                             when:
-                                'findReferences.url && (goToDefinition.loading || goToDefinition.url || goToDefinition.error || goToDefinition.notFound)',
+                                'findReferences.url && (goToDefinition.showLoading || goToDefinition.url || goToDefinition.error || goToDefinition.notFound)',
                         },
                     ],
                 },

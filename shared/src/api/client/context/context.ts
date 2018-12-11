@@ -22,9 +22,7 @@ export function applyContextUpdate(base: Context, update: Context): Context {
 /**
  * Context is an arbitrary, immutable set of key-value pairs.
  */
-export interface Context {
-    [key: string]: string | number | boolean | Context | null
-}
+export interface Context<T = {}> extends Record<string, string | number | boolean | null | T | Context<T>> {}
 
 export type ContributionScope =
     | (Pick<ViewComponentData, 'type' | 'selections'> & {
