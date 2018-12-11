@@ -151,6 +151,8 @@ export function getHoverActionsContext(
 /**
  * Returns an observable that emits null if no definitions are found, {url, multiple:false} if exactly 1 definition
  * is found, {url: defPanelURL, multiple:true} if multiple definitions are found, or an error.
+ *
+ * @internal Exported for testing only.
  */
 export function getDefinitionURL(
     textDocumentDefinition: Pick<Services['textDocumentDefinition'], 'getLocations'>,
