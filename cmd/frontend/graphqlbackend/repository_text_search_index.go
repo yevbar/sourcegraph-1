@@ -10,7 +10,7 @@ import (
 	zoektquery "github.com/google/zoekt/query"
 )
 
-func (r *repositoryResolver) TextSearchIndex() *repositoryTextSearchIndexResolver {
+func (r *RepositoryResolver) TextSearchIndex() *repositoryTextSearchIndexResolver {
 	if !searchIndexEnabled() {
 		return nil
 	}
@@ -18,7 +18,7 @@ func (r *repositoryResolver) TextSearchIndex() *repositoryTextSearchIndexResolve
 }
 
 type repositoryTextSearchIndexResolver struct {
-	repo *repositoryResolver
+	repo *RepositoryResolver
 
 	once  sync.Once
 	entry *zoekt.RepoListEntry
@@ -43,7 +43,7 @@ func (r *repositoryTextSearchIndexResolver) resolve(ctx context.Context) (*zoekt
 	return r.entry, r.err
 }
 
-func (r *repositoryTextSearchIndexResolver) Repository() *repositoryResolver { return r.repo }
+func (r *repositoryTextSearchIndexResolver) Repository() *RepositoryResolver { return r.repo }
 
 func (r *repositoryTextSearchIndexResolver) Status(ctx context.Context) (*repositoryTextSearchIndexStatus, error) {
 	entry, err := r.resolve(ctx)

@@ -250,7 +250,7 @@ func TestSearchResolver_DynamicFilters(t *testing.T) {
 		Name: "testRepo",
 	}
 
-	repoMatch := &repositoryResolver{
+	repoMatch := &RepositoryResolver{
 		repo: repo,
 	}
 
@@ -459,14 +459,14 @@ func TestCompareSearchResults(t *testing.T) {
 		// Different repo matches
 		testCase{
 			a: &searchResultResolver{
-				repo: &repositoryResolver{
+				repo: &RepositoryResolver{
 					repo: &types.Repo{
 						Name: api.RepoName("a"),
 					},
 				},
 			},
 			b: &searchResultResolver{
-				repo: &repositoryResolver{
+				repo: &RepositoryResolver{
 					repo: &types.Repo{
 						Name: api.RepoName("b"),
 					},
@@ -485,7 +485,7 @@ func TestCompareSearchResults(t *testing.T) {
 				},
 			},
 			b: &searchResultResolver{
-				repo: &repositoryResolver{
+				repo: &RepositoryResolver{
 					repo: &types.Repo{
 						Name: api.RepoName("a"),
 					},

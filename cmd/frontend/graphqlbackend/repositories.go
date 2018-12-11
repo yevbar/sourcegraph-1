@@ -169,17 +169,17 @@ func (r *repositoryConnectionResolver) compute(ctx context.Context) ([]*types.Re
 	return r.repos, r.err
 }
 
-func (r *repositoryConnectionResolver) Nodes(ctx context.Context) ([]*repositoryResolver, error) {
+func (r *repositoryConnectionResolver) Nodes(ctx context.Context) ([]*RepositoryResolver, error) {
 	repos, err := r.compute(ctx)
 	if err != nil {
 		return nil, err
 	}
-	resolvers := make([]*repositoryResolver, 0, len(repos))
+	resolvers := make([]*RepositoryResolver, 0, len(repos))
 	for i, repo := range repos {
 		if r.opt.LimitOffset != nil && i == r.opt.Limit {
 			break
 		}
-		resolvers = append(resolvers, &repositoryResolver{repo: repo})
+		resolvers = append(resolvers, &RepositoryResolver{repo: repo})
 	}
 	return resolvers, nil
 }
@@ -238,7 +238,7 @@ func (r *repositoryConnectionResolver) PageInfo(ctx context.Context) (*graphqlut
 
 func (r *schemaResolver) AddRepository(ctx context.Context, args *struct {
 	Name string
-}) (*repositoryResolver, error) {
+}) (*RepositoryResolver, error) {
 	// 🚨 SECURITY: Only site admins can add repositories.
 	if err := backend.CheckCurrentUserIsSiteAdmin(ctx); err != nil {
 		return nil, err
@@ -252,7 +252,7 @@ func (r *schemaResolver) AddRepository(ctx context.Context, args *struct {
 	if err != nil {
 		return nil, err
 	}
-	return &repositoryResolver{repo: repo}, nil
+	return &RepositoryResolver{repo: repo}, nil
 }
 
 func (r *schemaResolver) SetRepositoryEnabled(ctx context.Context, args *struct {
@@ -346,10 +346,10 @@ func repoNamesToStrings(repoNames []api.RepoName) []string {
 	return strings
 }
 
-func toRepositoryResolvers(repos []*types.Repo) []*repositoryResolver {
-	resolvers := make([]*repositoryResolver, len(repos))
+func toRepositoryResolvers(repos []*types.Repo) []*RepositoryResolver {
+	resolvers := make([]*RepositoryResolver, len(repos))
 	for i, repo := range repos {
-		resolvers[i] = &repositoryResolver{repo: repo}
+		resolvers[i] = &RepositoryResolver{repo: repo}
 	}
 	return resolvers
 }
