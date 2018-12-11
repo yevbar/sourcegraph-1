@@ -8,9 +8,7 @@ import {
     GitHubConnection,
     GitLabConnection,
     Repository,
-    SiteConfiguration,
 } from '../schema/site.schema'
-import { parseJSON } from '../settings/configuration'
 import { ConfigInsertionFunction } from '../settings/MonacoSettingsEditor'
 
 const defaultFormattingOptions: FormattingOptions = {
