@@ -1,29 +1,23 @@
-import { createHoverifier, HoveredToken, Hoverifier, HoverOverlay, HoverState } from '@sourcegraph/codeintellify'
+import { createHoverifier, HoveredToken, Hoverifier, HoverState } from '@sourcegraph/codeintellify'
 import { isEqual, upperFirst } from 'lodash'
 import AlertCircleIcon from 'mdi-react/AlertCircleIcon'
 import MapSearchIcon from 'mdi-react/MapSearchIcon'
 import * as React from 'react'
 import { Route, RouteComponentProps, Switch } from 'react-router'
-import { Link, LinkProps } from 'react-router-dom'
 import { Subject, Subscription } from 'rxjs'
 import { filter, map, withLatestFrom } from 'rxjs/operators'
+import { ActionItemProps } from '../../../../shared/src/actions/ActionItem'
 import { ExtensionsControllerProps } from '../../../../shared/src/extensions/controller'
 import * as GQL from '../../../../shared/src/graphql/schema'
+import { getHoverActions } from '../../../../shared/src/hover/actions'
+import { HoverContext, HoverOverlay } from '../../../../shared/src/hover/HoverOverlay'
 import { getModeFromPath } from '../../../../shared/src/languages'
 import { PlatformContextProps } from '../../../../shared/src/platform/context'
 import { propertyIsDefined } from '../../../../shared/src/util/types'
-import {
-    escapeRevspecForURL,
-    FileSpec,
-    RepoSpec,
-    ResolvedRevSpec,
-    RevSpec,
-    toPrettyBlobURL,
-} from '../../../../shared/src/util/url'
-import { getHover, getJumpURL } from '../../backend/features'
+import { escapeRevspecForURL, FileSpec, RepoSpec, ResolvedRevSpec, RevSpec } from '../../../../shared/src/util/url'
+import { getHover, HoverMerged } from '../../backend/features'
 import { LSPTextDocumentPositionParams } from '../../backend/lsp'
 import { HeroPage } from '../../components/HeroPage'
-import { eventLogger } from '../../tracking/eventLogger'
 import { RepoHeaderContributionsLifecycleProps } from '../RepoHeader'
 import { RepoHeaderBreadcrumbNavItem } from '../RepoHeaderBreadcrumbNavItem'
 import { RepoHeaderContributionPortal } from '../RepoHeaderContributionPortal'
@@ -46,7 +40,7 @@ interface Props
     repo: GQL.IRepository
 }
 
-interface State extends HoverState {
+interface State extends HoverState<HoverContext, HoverMerged, ActionItemProps> {
     error?: string
 }
 
@@ -67,9 +61,6 @@ export interface RepositoryCompareAreaPageProps extends PlatformContextProps {
     routePrefix: string
 }
 
-const logTelemetryEvent = (event: string, data?: any) => eventLogger.log(event, data)
-const LinkComponent = (props: LinkProps) => <Link {...props} />
-
 /**
  * Renders pages related to a repository comparison.
  */
@@ -85,22 +76,21 @@ export class RepositoryCompareArea extends React.Component<Props, State> {
     private nextRepositoryCompareAreaElement = (element: HTMLElement | null) =>
         this.repositoryCompareAreaElements.next(element)
 
-    /** Emits when the go to definition button was clicked */
-    private goToDefinitionClicks = new Subject<MouseEvent>()
-    private nextGoToDefinitionClick = (event: MouseEvent) => this.goToDefinitionClicks.next(event)
-
     /** Emits when the close button was clicked */
     private closeButtonClicks = new Subject<MouseEvent>()
     private nextCloseButtonClick = (event: MouseEvent) => this.closeButtonClicks.next(event)
 
     private subscriptions = new Subscription()
-    private hoverifier: Hoverifier<RepoSpec & RevSpec & FileSpec & ResolvedRevSpec>
+    private hoverifier: Hoverifier<RepoSpec & RevSpec & FileSpec & ResolvedRevSpec, HoverMerged, ActionItemProps>
 
     constructor(props: Props) {
         super(props)
-        this.hoverifier = createHoverifier<RepoSpec & RevSpec & FileSpec & ResolvedRevSpec>({
+        this.hoverifier = createHoverifier<
+            RepoSpec & RevSpec & FileSpec & ResolvedRevSpec,
+            HoverMerged,
+            ActionItemProps
+        >({
             closeButtonClicks: this.closeButtonClicks,
-            goToDefinitionClicks: this.goToDefinitionClicks,
             hoverOverlayElements: this.hoverOverlayElements,
             hoverOverlayRerenders: this.componentUpdates.pipe(
                 withLatestFrom(this.hoverOverlayElements, this.repositoryCompareAreaElements),
@@ -112,11 +102,8 @@ export class RepositoryCompareArea extends React.Component<Props, State> {
                 // Can't reposition HoverOverlay if it wasn't rendered
                 filter(propertyIsDefined('hoverOverlayElement'))
             ),
-            pushHistory: path => this.props.history.push(path),
-            logTelemetryEvent,
             fetchHover: hoveredToken => getHover(this.getLSPTextDocumentPositionParams(hoveredToken), this.props),
-            fetchJumpURL: hoveredToken => getJumpURL(this.getLSPTextDocumentPositionParams(hoveredToken), this.props),
-            getReferencesURL: position => toPrettyBlobURL({ ...position, position, viewState: 'references' }),
+            fetchActions: context => getHoverActions(this.props, context),
         })
         this.subscriptions.add(this.hoverifier)
         this.state = this.hoverifier.hoverState
@@ -210,10 +197,10 @@ export class RepositoryCompareArea extends React.Component<Props, State> {
                 {this.state.hoverOverlayProps && (
                     <HoverOverlay
                         {...this.state.hoverOverlayProps}
-                        logTelemetryEvent={logTelemetryEvent}
-                        linkComponent={LinkComponent}
                         hoverRef={this.nextOverlayElement}
-                        onGoToDefinitionClick={this.nextGoToDefinitionClick}
+                        extensionsController={this.props.extensionsController}
+                        platformContext={this.props.platformContext}
+                        location={this.props.location}
                         onCloseButtonClick={this.nextCloseButtonClick}
                     />
                 )}

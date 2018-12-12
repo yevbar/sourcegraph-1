@@ -9,7 +9,7 @@ import CloseIcon from 'mdi-react/CloseIcon'
 import InformationOutlineIcon from 'mdi-react/InformationOutlineIcon'
 import * as React from 'react'
 import { MarkupContent } from 'sourcegraph'
-import { ActionItem, ActionItemProps } from '../actions/ActionItem'
+import { ActionItem, ActionItemProps, LinkComponent } from '../actions/ActionItem'
 import { HoverMerged } from '../api/client/types/hover'
 import { ExtensionsControllerProps } from '../extensions/controller'
 import { PlatformContextProps } from '../platform/context'
@@ -29,17 +29,23 @@ interface Props
         ExtensionsControllerProps,
         PlatformContextProps {
     location: H.Location
+
+    /** The component used to render links. */
+    linkComponent: LinkComponent
 }
 
 export const HoverOverlay: React.FunctionComponent<Props> = ({
     hoverOrError,
     hoverRef,
+    onCloseButtonClick,
     overlayPosition,
+    showCloseButton,
     actionsOrError,
     className = '',
     extensionsController,
     platformContext,
     location,
+    linkComponent,
 }) => (
     <div
         className={`hover-overlay card ${className}`}
@@ -59,6 +65,14 @@ export const HoverOverlay: React.FunctionComponent<Props> = ({
                   }
         }
     >
+        {showCloseButton && (
+            <button
+                className="hover-overlay__close-button btn btn-icon"
+                onClick={onCloseButtonClick ? transformMouseEvent(onCloseButtonClick) : undefined}
+            >
+                <CloseIcon className="icon-inline" />
+            </button>
+        )}
         <div className="hover-overlay__contents">
             {hoverOrError === LOADING ? (
                 <div className="hover-overlay__row hover-overlay__loader-row">
@@ -138,6 +152,7 @@ export const HoverOverlay: React.FunctionComponent<Props> = ({
                             disabledDuringExecution={true}
                             showLoadingSpinnerDuringExecution={true}
                             showInlineError={true}
+                            linkComponent={linkComponent}
                             extensionsController={extensionsController}
                             platformContext={platformContext}
                             location={location}

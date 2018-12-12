@@ -155,6 +155,7 @@ export function getHoverActionsContext(
  * @internal Exported for testing only.
  */
 export function getDefinitionURL(
+    {urlToBlob},
     textDocumentDefinition: Pick<Services['textDocumentDefinition'], 'getLocations'>,
     params: TextDocumentPositionParams
 ): Observable<{ url: string; multiple: boolean } | null> {

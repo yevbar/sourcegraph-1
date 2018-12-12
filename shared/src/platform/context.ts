@@ -95,6 +95,14 @@ export interface PlatformContext {
     getScriptURLForExtension(bundleURL: string): string | Promise<string>
 
     /**
+     * Constructs the URL (possibly relative or absolute) to the file with the specified options.
+     *
+     * @param location The specific repository, revision, file, range, and view state to generate the URL for.
+     * @return The URL to the file with the specified options.
+     */
+    urlToFile()
+
+    /**
      * The URL to the Sourcegraph site that the user's session is associated with. This refers to
      * Sourcegraph.com (`https://sourcegraph.com`) by default, or a self-hosted instance of
      * Sourcegraph.

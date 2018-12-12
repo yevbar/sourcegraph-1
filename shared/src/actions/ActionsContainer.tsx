@@ -7,7 +7,7 @@ import { ContributableMenu } from '../api/protocol'
 import { getContributedActionItems } from '../contributions/contributions'
 import { ExtensionsControllerProps } from '../extensions/controller'
 import { PlatformContextProps } from '../platform/context'
-import { ActionItem, ActionItemProps } from './ActionItem'
+import { ActionItem, ActionItemProps, LinkComponent } from './ActionItem'
 import { ActionsState } from './actions'
 
 export interface ActionsProps extends ExtensionsControllerProps, PlatformContextProps {
@@ -16,6 +16,9 @@ export interface ActionsProps extends ExtensionsControllerProps, PlatformContext
     actionItemClass?: string
     listClass?: string
     location: H.Location
+
+    /** The component used to render links. */
+    linkComponent: LinkComponent
 }
 interface Props extends ActionsProps {
     /**
@@ -80,6 +83,7 @@ export class ActionsContainer extends React.PureComponent<Props, ActionsState> {
                     extensionsController={this.props.extensionsController}
                     platformContext={this.props.platformContext}
                     location={this.props.location}
+                    linkComponent={this.props.linkComponent}
                 />
             ))}
         </>

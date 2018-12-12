@@ -5,21 +5,22 @@ import {
     DOMFunctions,
     findPositionsFromEvents,
     Hoverifier,
-    HoverOverlay,
     HoverState,
-    LinkComponent,
     PositionAdjuster,
 } from '@sourcegraph/codeintellify'
 import { propertyIsDefined } from '@sourcegraph/codeintellify/lib/helpers'
-import { HoverMerged } from '@sourcegraph/codeintellify/lib/types'
 import * as H from 'history'
 import * as React from 'react'
 import { createPortal, render } from 'react-dom'
 import { animationFrameScheduler, Observable, of, Subject, Subscription } from 'rxjs'
 import { filter, map, mergeMap, observeOn, withLatestFrom } from 'rxjs/operators'
 
+import { ActionItemProps } from '../../../../../shared/src/actions/ActionItem'
 import { Model, ViewComponentData } from '../../../../../shared/src/api/client/model'
+import { HoverMerged } from '../../../../../shared/src/api/client/types/hover'
 import { ExtensionsControllerProps } from '../../../../../shared/src/extensions/controller'
+import { getHoverActions, registerHoverContributions } from '../../../../../shared/src/hover/actions'
+import { HoverContext, HoverOverlay } from '../../../../../shared/src/hover/HoverOverlay'
 import { getModeFromPath } from '../../../../../shared/src/languages'
 import { PlatformContextProps } from '../../../../../shared/src/platform/context'
 import { toPrettyBlobURL } from '../../../../../shared/src/util/url'
@@ -32,7 +33,7 @@ import {
 } from '../../shared/backend/lsp'
 import { ButtonProps, CodeViewToolbar } from '../../shared/components/CodeViewToolbar'
 import { FileSpec, RepoSpec, ResolvedRevSpec, RevSpec, toRootURI, toURIWithPath } from '../../shared/repo'
-import { eventLogger, sourcegraphUrl, useExtensions } from '../../shared/util/context'
+import { sourcegraphUrl, useExtensions } from '../../shared/util/context'
 import { bitbucketServerCodeHost } from '../bitbucket/code_intelligence'
 import { githubCodeHost } from '../github/code_intelligence'
 import { gitlabCodeHost } from '../gitlab/code_intelligence'
@@ -210,7 +211,7 @@ export interface FileInfo {
 function initCodeIntelligence(
     codeHost: CodeHost
 ): {
-    hoverifier: Hoverifier<RepoSpec & RevSpec & FileSpec & ResolvedRevSpec>
+    hoverifier: Hoverifier<RepoSpec & RevSpec & FileSpec & ResolvedRevSpec, HoverMerged, ActionItemProps>
     controllers: Partial<ExtensionsControllerProps & PlatformContextProps>
 } {
     const shouldUseExtensions = useExtensions || sourcegraphUrl === 'https://sourcegraph.com'
@@ -219,10 +220,6 @@ function initCodeIntelligence(
             ? initializeExtensions(codeHost.getCommandPaletteMount)
             : {}
     const simpleProviderFns = extensionsController ? createLSPFromExtensions(extensionsController) : lspViaAPIXlang
-
-    /** Emits when the go to definition button was clicked */
-    const goToDefinitionClicks = new Subject<MouseEvent>()
-    const nextGoToDefinitionClick = (event: MouseEvent) => goToDefinitionClicks.next(event)
 
     /** Emits when the close button was clicked */
     const closeButtonClicks = new Subject<MouseEvent>()
@@ -234,39 +231,35 @@ function initCodeIntelligence(
 
     const relativeElement = document.body
 
-    const fetchJumpURL = createJumpURLFetcher(
-        simpleProviderFns.fetchDefinition,
-        codeHost.buildJumpURLLocation || toPrettyBlobURL
-    )
+    // TODO!(sqs): use this for url generation
+    //
+    // const fetchJumpURL = createJumpURLFetcher(
+    //     simpleProviderFns.fetchDefinition,
+    //     codeHost.buildJumpURLLocation || toPrettyBlobURL
+    // )
 
     const containerComponentUpdates = new Subject<void>()
 
-    const hoverifier = createHoverifier<RepoSpec & RevSpec & FileSpec & ResolvedRevSpec>({
+    if (extensionsController) {
+        // TODO!(sqs): historyi
+        registerHoverContributions({ extensionsController, history: H.createBrowserHistory() })
+    }
+
+    const hoverifier = createHoverifier<RepoSpec & RevSpec & FileSpec & ResolvedRevSpec, HoverMerged, ActionItemProps>({
         closeButtonClicks,
-        goToDefinitionClicks,
         hoverOverlayElements,
         hoverOverlayRerenders: containerComponentUpdates.pipe(
             withLatestFrom(hoverOverlayElements),
             map(([, hoverOverlayElement]) => ({ hoverOverlayElement, relativeElement })),
             filter(propertyIsDefined('hoverOverlayElement'))
         ),
-        pushHistory: path => {
-            location.href = path
-        },
         fetchHover: ({ line, character, part, ...rest }) =>
             simpleProviderFns
                 .fetchHover({ ...rest, position: { line, character } })
                 .pipe(map(hover => (hover ? (hover as HoverMerged) : hover))),
-        fetchJumpURL,
-        getReferencesURL: position => toPrettyBlobURL({ ...position, position, viewState: 'references' }),
-        logTelemetryEvent: () => eventLogger.logCodeIntelligenceEvent(),
+        // TODO!(sqs): what happens when extensions are disbled? do action buttons show up?
+        fetchActions: context => (extensionsController ? getHoverActions({ extensionsController }, context) : of([])),
     })
-
-    const Link: LinkComponent = ({ to, children, ...rest }) => (
-        <a href={new URL(to, sourcegraphUrl).href} {...rest}>
-            {children}
-        </a>
-    )
 
     const classNames = ['hover-overlay-mount', `hover-overlay-mount__${codeHost.name}`]
 
@@ -303,7 +296,7 @@ function initCodeIntelligence(
         return mount
     }
 
-    class HoverOverlayContainer extends React.Component<{}, HoverState> {
+    class HoverOverlayContainer extends React.Component<{}, HoverState<HoverContext, HoverMerged, ActionItemProps>> {
         private portal: HTMLElement | null = null
 
         private observer: MutationObserver
@@ -345,18 +338,17 @@ function initCodeIntelligence(
                 ? createPortal(
                       <HoverOverlay
                           {...hoverOverlayProps}
-                          linkComponent={Link}
-                          logTelemetryEvent={this.log}
                           hoverRef={nextOverlayElement}
-                          onGoToDefinitionClick={nextGoToDefinitionClick}
+                          extensionsController={extensionsController!} // TODO!(sqs): fix
+                          platformContext={platformContext!} // TODO!(sqs): fix
+                          location={H.createLocation(window.location)}
                           onCloseButtonClick={nextCloseButtonClick}
                       />,
                       this.portal
                   )
                 : null
         }
-        private log = () => eventLogger.logCodeIntelligenceEvent()
-        private getHoverOverlayProps(): HoverState['hoverOverlayProps'] {
+        private getHoverOverlayProps(): HoverState<HoverContext, HoverMerged, ActionItemProps>['hoverOverlayProps'] {
             if (!this.state.hoverOverlayProps) {
                 return undefined
             }

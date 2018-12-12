@@ -3,7 +3,7 @@ import { Subject, Subscription } from 'rxjs'
 import { switchMap } from 'rxjs/operators'
 import { ContributionScope } from '../api/client/context/context'
 import { getContributedActionItems } from '../contributions/contributions'
-import { ActionItem } from './ActionItem'
+import { ActionItem, LinkComponent } from './ActionItem'
 import { ActionsState } from './actions'
 import { ActionsProps } from './ActionsContainer'
 
@@ -18,6 +18,9 @@ interface Props extends ActionsProps {
     listClass?: string
     actionItemClass?: string
     listItemClass?: string
+
+    /** The component used to render links. */
+    linkComponent: LinkComponent
 }
 
 /**
@@ -64,6 +67,7 @@ export class ActionsNavItems extends React.PureComponent<Props, ActionsState> {
                     platformContext={this.props.platformContext}
                     className={this.props.actionItemClass}
                     location={this.props.location}
+                    linkComponent={this.props.linkComponent}
                 />
             </li>
         ))

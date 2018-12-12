@@ -456,14 +456,10 @@ export class Blob extends React.Component<BlobProps, BlobState> {
                     <HoverOverlay
                         {...this.state.hoverOverlayProps}
                         hoverRef={this.nextOverlayElement}
-<<<<<<< HEAD
-                        onGoToDefinitionClick={this.nextGoToDefinitionClick}
                         onCloseButtonClick={this.nextCloseButtonClick}
-=======
                         extensionsController={this.props.extensionsController}
                         platformContext={this.props.platformContext}
                         location={this.props.location}
->>>>>>> 2b2c7ca9... WIP: extension hover actions + implement "Go to definition" and "Find references"
                     />
                 )}
                 {this.state.decorationsOrError &&

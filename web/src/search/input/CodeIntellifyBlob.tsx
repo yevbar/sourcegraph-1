@@ -1,29 +1,27 @@
-import {
-    createHoverifier,
-    findPositionsFromEvents,
-    HoveredToken,
-    HoverOverlay,
-    HoverState,
-} from '@sourcegraph/codeintellify'
+import { createHoverifier, findPositionsFromEvents, HoveredToken, HoverState } from '@sourcegraph/codeintellify'
 import { getTokenAtPosition } from '@sourcegraph/codeintellify/lib/token_position'
 import { Position } from '@sourcegraph/extension-api-types'
 import * as H from 'history'
 import * as React from 'react'
-import { Link, LinkProps } from 'react-router-dom'
 import { Subject, Subscription } from 'rxjs'
 import { catchError, filter, map, withLatestFrom } from 'rxjs/operators'
+import { ActionItemProps } from '../../../../shared/src/actions/ActionItem'
 import { ExtensionsControllerProps } from '../../../../shared/src/extensions/controller'
 import * as GQL from '../../../../shared/src/graphql/schema'
+import { getHoverActions } from '../../../../shared/src/hover/actions'
+import { HoverContext, HoverOverlay } from '../../../../shared/src/hover/HoverOverlay'
 import { getModeFromPath } from '../../../../shared/src/languages'
+import { PlatformContextProps } from '../../../../shared/src/platform/context'
 import { ErrorLike, isErrorLike } from '../../../../shared/src/util/errors'
 import { isDefined, propertyIsDefined } from '../../../../shared/src/util/types'
-import { FileSpec, RepoSpec, ResolvedRevSpec, RevSpec, toPrettyBlobURL } from '../../../../shared/src/util/url'
-import { getHover, getJumpURL } from '../../backend/features'
+import { FileSpec, RepoSpec, ResolvedRevSpec, RevSpec } from '../../../../shared/src/util/url'
+import { getHover, HoverMerged } from '../../backend/features'
 import { LSPTextDocumentPositionParams } from '../../backend/lsp'
 import { fetchBlob } from '../../repo/blob/BlobPage'
 
-interface Props extends ExtensionsControllerProps {
+interface Props extends ExtensionsControllerProps, PlatformContextProps {
     history: H.History
+    location: H.Location
     className: string
     startLine: number
     endLine: number
@@ -34,7 +32,7 @@ interface Props extends ExtensionsControllerProps {
     defaultHoverPosition: Position
 }
 
-interface State extends HoverState {
+interface State extends HoverState<HoverContext, HoverMerged, ActionItemProps> {
     /**
      * The blob data or error that happened.
      * undefined while loading.
@@ -42,8 +40,6 @@ interface State extends HoverState {
     blobOrError?: GQL.IGitBlob | ErrorLike
     target?: EventTarget
 }
-
-const LinkComponent = (props: LinkProps) => <Link {...props} />
 
 const domFunctions = {
     getCodeElementFromTarget: (target: HTMLElement): HTMLTableCellElement | null => {
@@ -102,10 +98,6 @@ export class CodeIntellifyBlob extends React.Component<Props, State> {
     private nextCodeIntellifyBlobElements = (element: HTMLElement | null) =>
         this.codeIntellifyBlobElements.next(element)
 
-    /** Emits when the go to definition button was clicked */
-    private goToDefinitionClicks = new Subject<MouseEvent>()
-    private nextGoToDefinitionClick = (event: MouseEvent) => this.goToDefinitionClicks.next(event)
-
     /** Emits when the close button was clicked */
     private closeButtonClicks = new Subject<MouseEvent>()
     private nextCloseButtonClick = (event: MouseEvent) => this.closeButtonClicks.next(event)
@@ -120,11 +112,13 @@ export class CodeIntellifyBlob extends React.Component<Props, State> {
         super(props)
         this.state = {}
 
-        const hoverifier = createHoverifier<RepoSpec & RevSpec & FileSpec & ResolvedRevSpec>({
+        const hoverifier = createHoverifier<
+            RepoSpec & RevSpec & FileSpec & ResolvedRevSpec,
+            HoverMerged,
+            ActionItemProps
+        >({
             closeButtonClicks: this.closeButtonClicks,
-            goToDefinitionClicks: this.goToDefinitionClicks,
             hoverOverlayElements: this.hoverOverlayElements,
-            pushHistory: path => this.props.history.push(path),
             hoverOverlayRerenders: this.componentUpdates.pipe(
                 withLatestFrom(this.hoverOverlayElements, this.codeIntellifyBlobElements),
                 map(([, hoverOverlayElement, codeIntellifyBlobElement]) => ({
@@ -141,8 +135,7 @@ export class CodeIntellifyBlob extends React.Component<Props, State> {
                 filter(propertyIsDefined('hoverOverlayElement'))
             ),
             fetchHover: hoveredToken => getHover(this.getLSPTextDocumentPositionParams(hoveredToken), this.props),
-            fetchJumpURL: hoveredToken => getJumpURL(this.getLSPTextDocumentPositionParams(hoveredToken), this.props),
-            getReferencesURL: position => toPrettyBlobURL({ ...position, position, viewState: 'references' }),
+            fetchActions: context => getHoverActions(this.props, context),
         })
 
         this.subscriptions.add(hoverifier)
@@ -275,9 +268,10 @@ export class CodeIntellifyBlob extends React.Component<Props, State> {
                 {this.state.hoverOverlayProps && (
                     <HoverOverlay
                         {...hoverOverlayProps}
-                        linkComponent={LinkComponent}
                         hoverRef={this.nextOverlayElement}
-                        onGoToDefinitionClick={this.nextGoToDefinitionClick}
+                        extensionsController={this.props.extensionsController}
+                        platformContext={this.props.platformContext}
+                        location={this.props.location}
                         onCloseButtonClick={this.nextCloseButtonClick}
                         showCloseButton={false}
                         className={this.props.tooltipClass}
@@ -292,7 +286,9 @@ export class CodeIntellifyBlob extends React.Component<Props, State> {
      * so that it aligns the right side of the hover overlay with the right side of the target element.
      *
      */
-    private adjustHoverOverlayPosition(target: EventTarget | null): HoverState['hoverOverlayProps'] {
+    private adjustHoverOverlayPosition(
+        target: EventTarget | null
+    ): HoverState<HoverContext, HoverMerged, ActionItemProps>['hoverOverlayProps'] {
         const viewPortEdge = window.innerWidth
         if (!this.state.hoverOverlayProps) {
             return undefined

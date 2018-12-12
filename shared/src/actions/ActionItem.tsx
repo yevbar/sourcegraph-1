@@ -56,6 +56,9 @@ export interface ActionItemProps {
 
     /** Instead of showing the icon and/or title, show this element. */
     title?: React.ReactElement<any>
+
+    /** The component used to render links. */
+    linkComponent: LinkComponent
 }
 
 interface Props extends ActionItemProps, ExtensionsControllerProps, PlatformContextProps {
@@ -170,6 +173,7 @@ export class ActionItem extends React.PureComponent<Props, State> {
                     (this.props.altAction && urlForClientCommandOpen(this.props.altAction, this.props.location))
                 }
                 onSelect={this.runAction}
+                linkComponent={this.props.linkComponent}
             >
                 <div
                     className={`action-item__content d-flex align-items-center ${
