@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { Link } from 'react-router-dom'
 import { displayRepoPath, splitPath } from '../components/RepoFileLink'
+import { Link } from './Link'
 
 interface Props {
     repoPath: string
